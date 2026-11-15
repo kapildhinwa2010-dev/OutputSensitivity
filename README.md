@@ -1,5 +1,8 @@
 # OutputSensitivity
 
+[![CI](https://github.com/kapildhinwa2010-dev/OutputSensitivity/actions/workflows/ci.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/OutputSensitivity/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/kapildhinwa2010-dev/OutputSensitivity/actions/workflows/codeql.yml/badge.svg)](https://github.com/kapildhinwa2010-dev/OutputSensitivity/actions/workflows/codeql.yml)
+
 Rank neural-network layers by how much perturbing them moves the model output.
 
 ## What it does
