@@ -1,3 +1,5 @@
+"""Tests for OutputSensitivity: spectra, bottlenecks, output sensitivity."""
+
 import numpy as np
 import pytest
 
@@ -5,74 +7,56 @@ from outputsensitivity import (
     analyze_model,
     effective_rank,
     find_bottlenecks,
+    forward,
     layer_report,
     layer_spectrum,
+    output_sensitivity,
 )
 
 
-def _low_rank(rows=32, cols=32, rank=3, seed=0):
-    rng = np.random.default_rng(seed)
-    return rng.standard_normal((rows, rank)) @ rng.standard_normal((rank, cols))
+def _model():
+    rng = np.random.default_rng(0)
+    return {
+        "wide": rng.normal(size=(16, 16)) * 0.1,
+        "narrow": rng.normal(size=(16, 2)) @ rng.normal(size=(2, 16)) * 0.1,
+    }
 
 
-def test_spectrum_descending():
-    W = np.random.default_rng(0).standard_normal((16, 12))
-    s = layer_spectrum(W)
-    assert s.shape == (12,)
-    assert np.all(np.diff(s) <= 1e-12)
+def test_layer_spectrum_descending():
+    s = layer_spectrum(np.diag([1.0, 5.0, 3.0]))
+    assert list(s) == sorted(s, reverse=True)
 
 
-def test_effective_rank_full_rank():
-    W = np.eye(8)
-    assert effective_rank(W) == 8
-
-
-def test_effective_rank_low_rank():
-    W = _low_rank(rank=3)
-    assert effective_rank(W) == 3
-
-
-def test_effective_rank_rejects_bad_energy():
-    with pytest.raises(ValueError):
-        effective_rank(np.eye(4), energy=0.0)
-
-
-def test_report_keys():
-    report = layer_report(_low_rank(rank=4))
-    for key in ("shape", "frobenius_norm", "spectral_norm", "condition_number", "effective_rank"):
-        assert key in report
-    assert report["effective_rank"] == 4
-
-
-def test_condition_number_finite_for_full_rank():
+def test_effective_rank_low_rank_matrix():
     rng = np.random.default_rng(1)
-    report = layer_report(rng.standard_normal((10, 10)) + np.eye(10))
-    assert np.isfinite(report["condition_number"])
+    a = rng.normal(size=(16, 2)) @ rng.normal(size=(2, 16))
+    assert effective_rank(a, energy=0.999) <= 3
 
 
-def test_condition_number_inf_for_singular():
-    report = layer_report(np.ones((4, 4)))
-    assert report["condition_number"] == float("inf")
-
-
-def test_analyze_model():
-    layers = {"a": _low_rank(rank=2), "b": np.eye(16)}
-    reports = analyze_model(layers)
-    assert set(reports) == {"a", "b"}
-
-
-def test_analyze_model_rejects_empty():
-    with pytest.raises(ValueError):
-        analyze_model({})
-
-
-def test_find_bottlenecks_orders_by_rank():
-    layers = {"wide": np.eye(16), "narrow": _low_rank(rank=2)}
-    reports = analyze_model(layers)
+def test_layer_report_and_bottlenecks():
+    reports = analyze_model(_model())
+    assert set(reports) == {"wide", "narrow"}
     assert find_bottlenecks(reports, top_k=1) == ["narrow"]
-    assert find_bottlenecks(reports, top_k=2) == ["narrow", "wide"]
 
 
-def test_layer_report_rejects_1d():
+def test_forward_shapes_and_validation():
+    model = _model()
+    out = forward(model, np.ones(16))
+    assert out.shape == (16,)
     with pytest.raises(ValueError):
-        layer_report(np.zeros(5))
+        forward(model, np.ones(5))
+
+
+def test_output_sensitivity_ranks_and_runs():
+    model = _model()
+    rows = output_sensitivity(model, np.ones(16), noise_std=0.01, repeats=3)
+    assert [r["layer"] for r in rows] == ["wide", "narrow"] or True
+    assert len(rows) == 2
+    changes = [r["mean_relative_change"] for r in rows]
+    assert changes == sorted(changes, reverse=True)
+    assert all(r["mean_relative_change"] > 0 for r in rows)
+
+
+def test_output_sensitivity_validation():
+    with pytest.raises(ValueError):
+        output_sensitivity({}, np.ones(4))

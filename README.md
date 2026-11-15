@@ -1,42 +1,43 @@
 # OutputSensitivity
 
-Layer-wise spectral analysis for deep networks.
+Rank neural-network layers by how much perturbing them moves the model output.
 
-**Part of the [Kapildhinwa2010-dev Toolkit](https://github.com/kapildhinwa2010-dev/Kapildhinwa2010-dev).**
+## What it does
 
-![CI](https://github.com/kapildhinwa2010-dev/OutputSensitivity/actions/workflows/ci.yml/badge.svg)
-![CodeQL](https://github.com/kapildhinwa2010-dev/OutputSensitivity/actions/workflows/codeql.yml/badge.svg)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+Given a model dict {name: 2-D matrix} applied in insertion order, the
+module provides two views:
 
-## ✨ Features
+- Spectral: singular spectra, effective rank, condition number, and
+  find_bottlenecks() (smallest effective rank first).
+- Output sensitivity (the namesake feature): output_sensitivity() adds
+  Gaussian noise to one layer at a time and measures the relative change
+  of the final output, most sensitive layer first.
 
-- Singular-value spectra and effective rank per layer
-- Condition numbers and bottleneck ranking
-- `analyze_model()` reports every layer at once
+    from outputsensitivity import output_sensitivity
 
-## 📦 Install
+    for row in output_sensitivity(model, x, noise_std=0.01):
+        print(row["layer"], round(row["mean_relative_change"], 5))
 
-```bash
-pip install -r requirements.txt
-```
+## API
 
-## 🚀 Quick start
+- layer_spectrum, effective_rank, layer_report, analyze_model,
+  find_bottlenecks
+- forward(layers, x) - applies layers in insertion order
+- output_sensitivity(layers, x, noise_std, repeats, rng)
 
-```python
-from outputsensitivity import analyze_model, find_bottlenecks
+## Honest results and limitations
 
-layers = {'a': np.eye(16), 'b': low_rank_matrix}
-reports = analyze_model(layers)
-print(find_bottlenecks(reports, top_k=1))
-```
+- Sensitivity is a finite-difference estimate under random noise, not a
+  gradient; it varies between runs and depends on the input vector.
+- Ranking by mean relative change says which layer moves the output, not
+  which layer is "important" for accuracy - those are different questions.
+- No nonlinearity: the forward pass is pure matrix products, so this
+  analyses linear maps only.
+- Negative result from the source experiments: spectral rank and output
+  sensitivity do not always agree - a low-rank layer can still move the
+  output a lot. Use both views, not just one.
 
-## 🧪 Tests
+## Status
 
-```bash
-pytest tests/ -v
-```
-
-## 📄 License
-
-MIT — see [LICENSE](LICENSE).
+Part of the kapildhinwa2010-dev toolkit experiments. CI and CodeQL run on
+every push to main. License: MIT.
